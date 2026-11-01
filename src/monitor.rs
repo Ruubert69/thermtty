@@ -68,6 +68,9 @@ pub struct Monitor {
     cpu_temp: History,
     gpu_temp: History,
     traffic: History,
+    /// Visibility of the cpu, gpu, ram and net rows.
+    pub rows: [bool; 4],
+    pub fahrenheit: bool,
 }
 
 impl Monitor {
@@ -88,18 +91,29 @@ impl Monitor {
             cpu_temp: History::new(),
             gpu_temp: History::new(),
             traffic: History::new(),
+            rows: [true; 4],
+            fahrenheit: false,
         }
     }
 
-    pub fn rows(&self) -> usize {
-        3 + usize::from(self.gpu.is_some())
+    pub fn has_gpu(&self) -> bool {
+        self.gpu.is_some()
     }
 
-    /// Call once per second.
+    /// Whether row `i` (cpu, gpu, ram, net) is drawn.
+    pub fn shown(&self, i: usize) -> bool {
+        self.rows[i] && (i != 1 || self.gpu.is_some())
+    }
+
+    pub fn rows(&self) -> usize {
+        (0..4).filter(|&i| self.shown(i)).count()
+    }
+
+    /// Call once per refresh interval.
     pub fn tick(&mut self) {
         self.cpu_now = self.cpu.sample();
         self.cpu_temp.push(self.cpu_now.temp);
-        if let Some(gpu) = &self.gpu {
+        if let Some(gpu) = self.gpu.as_ref().filter(|_| self.rows[1]) {
             self.gpu_now = gpu.sample();
             self.gpu_temp.push(self.gpu_now.temp);
         }
@@ -110,44 +124,59 @@ impl Monitor {
 
     pub fn draw(&self, g: &mut Grid) {
         g.clear();
+        let f = self.fahrenheit;
         let mut row = 0;
-        let cpu_heat = |t: f32| heat(t, 70.0, 85.0);
-        g.put(row, 0, "cpu", MUTED);
-        temp_row(g, row, self.cpu_now.temp, self.cpu_now.load, &self.cpu_temp, cpu_heat);
-
-        if self.gpu.is_some() {
+        if self.shown(0) {
+            g.put(row, 0, "cpu", MUTED);
+            temp_row(g, row, self.cpu_now.temp, self.cpu_now.load, &self.cpu_temp, f, |t| heat(t, 70.0, 85.0));
             row += 1;
+        }
+        if self.shown(1) {
             g.put(row, 0, "gpu", MUTED);
-            temp_row(g, row, self.gpu_now.temp, self.gpu_now.load, &self.gpu_temp, |t| heat(t, 70.0, 83.0));
+            temp_row(g, row, self.gpu_now.temp, self.gpu_now.load, &self.gpu_temp, f, |t| heat(t, 70.0, 83.0));
+            row += 1;
         }
-
-        row += 1;
-        let (used, total) = self.mem;
-        let pct = (used / total * 100.0) as f32;
-        g.put(row, 0, "ram", MUTED);
-        g.putf_r(row, A_END, FG, format_args!("{:.1}G", used / GIB));
-        g.putf_r(row, B_END, load_color(pct), format_args!("{pct:.0}%"));
-        let filled = (pct / 100.0 * GRAPH_W as f32).round() as usize;
-        for col in 0..GRAPH_W {
-            let (ch, c) = if col < filled { ("━", load_color(pct)) } else { ("─", DIM) };
-            g.put(row, GRAPH + col, ch, c);
+        if self.shown(2) {
+            let (used, total) = self.mem;
+            let pct = (used / total * 100.0) as f32;
+            g.put(row, 0, "ram", MUTED);
+            g.putf_r(row, A_END, FG, format_args!("{:.1}G", used / GIB));
+            g.putf_r(row, B_END, load_color(pct), format_args!("{pct:.0}%"));
+            let filled = (pct / 100.0 * GRAPH_W as f32).round() as usize;
+            for col in 0..GRAPH_W {
+                let (ch, c) = if col < filled { ("━", load_color(pct)) } else { ("─", DIM) };
+                g.put(row, GRAPH + col, ch, c);
+            }
+            row += 1;
         }
-
-        row += 1;
-        g.put(row, 0, "net", MUTED);
-        if let (Some(rx), Some(tx)) = (self.rx, self.tx) {
-            g.putf_r(row, A_END, FG, format_args!("↓{}", Rate(rx)));
-            g.putf_r(row, B_END, FG, format_args!("↑{}", Rate(tx)));
+        if self.shown(3) {
+            g.put(row, 0, "net", MUTED);
+            if let (Some(rx), Some(tx)) = (self.rx, self.tx) {
+                g.putf_r(row, A_END, FG, format_args!("↓{}", Rate(rx)));
+                g.putf_r(row, B_END, FG, format_args!("↑{}", Rate(tx)));
+            }
+            let hi = self.traffic.window_max().unwrap_or(0.0).max(64.0 * 1024.0);
+            sparkline(g, row, &self.traffic, 0.0, hi, |_| ACCENT);
         }
-        let hi = self.traffic.window_max().unwrap_or(0.0).max(64.0 * 1024.0);
-        sparkline(g, row, &self.traffic, 0.0, hi, |_| ACCENT);
     }
 }
 
-/// Temperature, load, and the temperature sparkline.
-fn temp_row(g: &mut Grid, row: usize, temp: Option<f32>, load: Option<f32>, hist: &History, heat: impl Fn(f32) -> Color) {
+/// Temperature (shown in °F if `fahrenheit`; colors and graph stay in °C), load, and the
+/// temperature sparkline.
+fn temp_row(
+    g: &mut Grid,
+    row: usize,
+    temp: Option<f32>,
+    load: Option<f32>,
+    hist: &History,
+    fahrenheit: bool,
+    heat: impl Fn(f32) -> Color,
+) {
     match temp {
-        Some(t) => g.putf_r(row, A_END, heat(t), format_args!("{t:.0}°")),
+        Some(t) => {
+            let shown = if fahrenheit { t * 1.8 + 32.0 } else { t };
+            g.putf_r(row, A_END, heat(t), format_args!("{shown:.0}°"))
+        }
         None => g.put_r(row, A_END, "--", MUTED),
     };
     match load {

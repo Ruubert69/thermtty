@@ -150,7 +150,14 @@ impl Painter {
         RECT { left: width - self.pad, top: 0, right: width, bottom: self.pad }
     }
 
-    pub fn paint(&self, hdc: HDC, grid: &Grid, width: i32, height: i32, close_hot: bool) {
+    /// Grid cell under a client-area point.
+    pub fn cell_at(&self, pt: windows_sys::Win32::Foundation::POINT) -> Option<(usize, usize)> {
+        let (x, y) = (pt.x - self.pad, pt.y - self.pad);
+        (x >= 0 && y >= 0 && self.cell_w > 0).then(|| ((y / self.line_h) as usize, (x / self.cell_w) as usize))
+    }
+
+    /// `close`: `None` hides the close button, `Some(hovered)` draws it.
+    pub fn paint(&self, hdc: HDC, grid: &Grid, width: i32, height: i32, close: Option<bool>) {
         unsafe {
             let mem = CreateCompatibleDC(hdc);
             let bmp = CreateCompatibleBitmap(hdc, width, height);
@@ -178,7 +185,9 @@ impl Painter {
                 }
                 y += self.line_h;
             }
-            self.paint_close(mem, width, close_hot);
+            if let Some(hot) = close {
+                self.paint_close(mem, width, hot);
+            }
             BitBlt(hdc, 0, 0, width, height, mem, 0, 0, SRCCOPY);
             SelectObject(mem, old_font);
             SelectObject(mem, old_bmp);
@@ -203,6 +212,17 @@ impl Painter {
             LineTo(dc, cx - h - 1, cy + h + 1);
             SelectObject(dc, old);
             DeleteObject(pen);
+        }
+    }
+}
+
+impl Drop for Painter {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.font.is_null() {
+                DeleteObject(self.font);
+            }
+            DeleteObject(self.background);
         }
     }
 }

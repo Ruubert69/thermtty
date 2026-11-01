@@ -6,6 +6,7 @@ mod gpu;
 mod grid;
 mod monitor;
 mod pawnio;
+mod settings;
 mod sys;
 mod window;
 

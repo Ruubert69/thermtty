@@ -39,9 +39,14 @@ cargo build --release
 
 ## Use
 
-- Drag anywhere to move; position is saved to `%APPDATA%\thermtty\config.ini`.
-- Click the `×` in the top-right corner to close (it turns red on hover).
-- Right-click: always on top, opacity, text size, exit.
+- Drag anywhere to move; click the `×` in the top-right corner to close.
+- Right-click opens the settings panel (right-click again, Esc, or click elsewhere to close):
+  - **layer**: always on top, normal window, or keep on desktop (stays behind all windows)
+  - **widget**: show the close button, lock position (no dragging), temperatures in °F
+  - **rows**: show or hide cpu, gpu, ram and net
+  - **opacity**, **text size**, **refresh** (1, 2 or 5 s; graphs span 60 samples)
+  - **quit**
+- Settings and position are saved to `%APPDATA%\thermtty\config.ini`.
 - `thermtty.exe --dump out.txt` writes one rendered frame as text, for checking sensors.
 
 ### Start with Windows
