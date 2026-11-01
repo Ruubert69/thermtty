@@ -35,6 +35,9 @@ const PANEL_GAP: i32 = 8;
 /// A right-click this soon after the panel closed itself (by losing focus to that very
 /// click) is the user toggling it off, not asking to reopen it.
 const REOPEN_GUARD_MS: u32 = 400;
+/// Posted by a second launch to the running widget: open the settings panel. Keeps the
+/// settings reachable when the widget itself is hidden behind windows or by Win+D.
+const WM_APP_SETTINGS: u32 = WM_APP + 1;
 
 struct App {
     hwnd: HWND,
@@ -92,6 +95,13 @@ pub fn run() {
     unsafe {
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let class = wide("thermtty");
+        let running = FindWindowW(class.as_ptr(), null());
+        if !running.is_null() {
+            // We were launched by the user, so we may hand foreground rights to the widget.
+            AllowSetForegroundWindow(ASFW_ANY);
+            PostMessageW(running, WM_APP_SETTINGS, 0, 0);
+            return;
+        }
         register_class(&class, Some(wndproc));
         register_class(&wide("thermtty-settings"), Some(panel_proc));
         let cfg = Config::load();
@@ -389,6 +399,12 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             WM_LBUTTONUP => {
                 if app.in_close(point(lparam)) {
                     DestroyWindow(hwnd);
+                }
+                0
+            }
+            WM_APP_SETTINGS => {
+                if app.panel.is_none() {
+                    app.open_panel();
                 }
                 0
             }

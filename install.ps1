@@ -15,6 +15,8 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 $dir = Join-Path $env:ProgramFiles 'thermtty'
 $exe = Join-Path $dir 'thermtty.exe'
 $task = 'thermtty'
+# Launching thermtty while it runs opens its settings, so the shortcut doubles as "settings".
+$shortcut = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\thermtty.lnk'
 
 Get-Process thermtty -ErrorAction SilentlyContinue | Stop-Process -Force
 Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
@@ -22,6 +24,7 @@ Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyCo
 if ($Uninstall) {
     Start-Sleep -Milliseconds 500
     Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item $shortcut -Force -ErrorAction SilentlyContinue
     'thermtty uninstalled.'
     return
 }
@@ -33,6 +36,10 @@ if (-not $source) { throw 'thermtty.exe not found next to this script or in targ
 Start-Sleep -Milliseconds 500 # let a just-stopped instance release the file
 New-Item -ItemType Directory -Force $dir | Out-Null
 Copy-Item $source $exe -Force
+$link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
+$link.TargetPath = $exe
+$link.Description = 'Start thermtty, or open its settings if it is already running'
+$link.Save()
 
 # Program Files keeps the elevated target admin-writable only. Defaults that would stop a
 # widget are overridden: the 72 h execution limit and the on-battery restrictions.

@@ -40,7 +40,9 @@ cargo build --release
 ## Use
 
 - Drag anywhere to move; click the `×` in the top-right corner to close.
-- Right-click opens the settings panel (right-click again, Esc, or click elsewhere to close):
+- Right-click opens the settings panel (right-click again, Esc, or click elsewhere to close).
+  Launching thermtty again while it runs (Start → thermtty after `install.ps1`) also opens
+  it, for when the widget is hidden behind windows:
   - **layer**: always on top, normal window, or keep on desktop (stays behind all windows)
   - **widget**: show the close button, lock position (no dragging), temperatures in °F
   - **rows**: show or hide cpu, gpu, ram and net
