@@ -101,6 +101,8 @@ pub struct Painter {
     pad: i32,
     dx: Vec<i32>,
     background: HBRUSH,
+    /// Reserve a two-cell gutter right of the grid for the close button.
+    pub close_gutter: bool,
 }
 
 impl Painter {
@@ -113,6 +115,7 @@ impl Painter {
             pad: 0,
             dx: Vec::new(),
             background: unsafe { CreateSolidBrush(BACKGROUND) },
+            close_gutter: false,
         }
     }
 
@@ -141,13 +144,15 @@ impl Painter {
     }
 
     pub fn window_size(&self, grid: &Grid) -> (i32, i32) {
+        let gutter = if self.close_gutter { 2 * self.cell_w } else { 0 };
         let height = grid.rows as i32 * self.line_h + 2 * self.pad;
-        (grid.cols as i32 * self.cell_w + 2 * self.pad, height)
+        (grid.cols as i32 * self.cell_w + gutter + 2 * self.pad, height)
     }
 
-    /// Close button: the padding square in the top-right corner.
+    /// Close button hit area: the gutter beside the first text row, extended to the
+    /// top-right corner so it is easy to hit.
     pub fn close_rect(&self, width: i32) -> RECT {
-        RECT { left: width - self.pad, top: 0, right: width, bottom: self.pad }
+        RECT { left: width - self.pad - self.cell_w * 3 / 2, top: 0, right: width, bottom: self.pad + self.line_h }
     }
 
     /// Grid cell under a client-area point.
@@ -196,10 +201,9 @@ impl Painter {
         }
     }
 
-    /// A thin `×`, muted until hovered.
+    /// A thin `×` centred on the first text row, inset from the border; muted until hovered.
     unsafe fn paint_close(&self, dc: HDC, width: i32, hot: bool) {
-        let r = self.close_rect(width);
-        let (cx, cy) = ((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+        let (cx, cy) = (width - self.pad - self.cell_w / 2, self.pad + self.line_h / 2);
         let h = (self.pad / 4).max(2);
         let color = PALETTE[usize::from(if hot { HOT } else { MUTED })];
         unsafe {

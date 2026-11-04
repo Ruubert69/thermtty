@@ -58,6 +58,7 @@ pub fn cycle<T: PartialEq + Copy>(items: &[T], current: T, step: isize) -> T {
 impl Panel {
     pub fn new(hwnd: HWND, dpi: u32) -> Self {
         let mut painter = Painter::new();
+        painter.close_gutter = true;
         painter.set_font(FONT_PX * dpi as i32 / 96, COLS);
         Self { hwnd, grid: Grid::new(COLS, ROWS), painter, zones: Vec::new(), hover: None, close_hot: false }
     }

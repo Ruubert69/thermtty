@@ -173,6 +173,7 @@ impl App {
             self.grid = Grid::new(COLS, self.monitor.rows());
             self.monitor.draw(&mut self.grid);
         }
+        self.painter.close_gutter = self.cfg.show_close;
         self.painter.set_font(self.cfg.size * dpi as i32 / 96, COLS);
         let (w, h) = self.painter.window_size(&self.grid);
         let mut flags = SWP_NOZORDER | SWP_NOACTIVATE;
@@ -252,7 +253,7 @@ impl App {
                 Action::CloseButton => {
                     cfg.show_close = !cfg.show_close;
                     self.close_hot = false;
-                    InvalidateRect(self.hwnd, null(), 0);
+                    self.layout(GetDpiForWindow(self.hwnd), None);
                 }
                 Action::Lock => cfg.locked = !cfg.locked,
                 Action::Fahrenheit => {
@@ -408,7 +409,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 }
                 0
             }
-            WM_CONTEXTMENU => {
+            // Most of the widget is caption (HTCAPTION, for dragging), where DefWindowProc
+            // treats right-clicks as system-menu clicks; handle both kinds ourselves.
+            WM_NCRBUTTONDOWN | WM_RBUTTONDOWN => 0,
+            WM_NCRBUTTONUP | WM_RBUTTONUP => {
                 if app.panel.is_some() {
                     app.close_panel();
                 } else if GetTickCount().wrapping_sub(app.panel_closed_at) > REOPEN_GUARD_MS {
@@ -416,6 +420,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 }
                 0
             }
+            WM_CONTEXTMENU => 0,
             WM_WINDOWPOSCHANGING if app.cfg.layer == Layer::Desktop => {
                 // Clicking or activating would raise the widget; pin it to the bottom.
                 let pos = &mut *(lparam as *mut WINDOWPOS);
