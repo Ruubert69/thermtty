@@ -203,7 +203,7 @@ impl Painter {
 
     /// A thin `×` in the top padding above the gutter, clear of the border; muted until hovered.
     unsafe fn paint_close(&self, dc: HDC, width: i32, hot: bool) {
-        let (cx, cy) = (width - self.pad - self.cell_w / 2, self.pad * 3 / 5);
+        let (cx, cy) = (width - self.pad - self.cell_w / 2, self.pad * 3 / 4);
         let h = (self.pad / 4).max(2);
         let color = PALETTE[usize::from(if hot { HOT } else { MUTED })];
         unsafe {
